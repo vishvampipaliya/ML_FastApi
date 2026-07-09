@@ -1,14 +1,19 @@
 # Insurance Premium Prediction API
 
-A production-grade ML FastAPI project (Random Forest model → FastAPI → validated JSON API),
-built from the course PDF's "Deploying Machine Learning Models with FastAPI" project.
+A production-grade ML FastAPI project — a trained Random Forest model served behind
+a validated, documented REST API. Predicts whether a user's insurance premium will
+be **Low**, **Medium**, or **High** based on demographic and lifestyle data.
+
+---
 
 ## Project Structure
+
 ```
 insurance_premium_prediction/
 ├── app.py                        # FastAPI application (routes)
 ├── train_model.py                # Trains the model, produces model/model.pkl
 ├── requirements.txt              # Python dependencies
+├── README.md
 ├── model/
 │   ├── model.pkl                 # Trained sklearn Pipeline (already generated)
 │   └── predict.py                # Model loading + prediction logic
@@ -19,56 +24,83 @@ insurance_premium_prediction/
     └── city_tier.py              # City tier classification data
 ```
 
-## 1. Setup in VS Code
+---
 
-**VS Code extensions to install** (Extensions panel, `Ctrl+Shift+X` / `Cmd+Shift+X`):
-- **Python** (Microsoft) — `ms-python.python`
-- **Pylance** (Microsoft) — `ms-python.vscode-pylance`
-- *(optional)* **Jupyter** — if you want to explore the model interactively
-- *(optional)* **Docker** — if you plan to containerize later
+## 1. Prerequisites
 
-**Python packages to install** (these are the "models"/libraries the project needs —
-run in VS Code's integrated terminal, inside your project folder):
+- Python 3.9+ installed
+- VS Code with these extensions:
+  - **Python** (Microsoft) — `ms-python.python`
+  - **Pylance** (Microsoft) — `ms-python.vscode-pylance`
+
+---
+
+## 2. Setup
+
+Open this folder in VS Code so that `app.py` sits at the root (imports like
+`from schema.user_input import UserInput` depend on running from here).
+
+Open a terminal in VS Code (`` Ctrl+` ``) and create a virtual environment:
 
 ```bash
 python -m venv myenv
-# Windows:
-myenv\Scripts\activate
-# macOS/Linux:
-source myenv/bin/activate
+```
 
+Activate it:
+
+| OS | Command |
+|---|---|
+| Windows (PowerShell) | `myenv\Scripts\Activate.ps1` |
+| Windows (cmd) | `myenv\Scripts\activate.bat` |
+| macOS / Linux | `source myenv/bin/activate` |
+
+You should see `(myenv)` in the prompt. Then select it as your interpreter:
+`Ctrl+Shift+P` → **Python: Select Interpreter** → choose the `myenv` one.
+
+Install dependencies:
+
+```bash
 pip install -r requirements.txt
 ```
 
 This installs: `fastapi`, `uvicorn`, `pydantic`, `scikit-learn`, `pandas`, `numpy`.
 
-In VS Code, select this virtual environment as your interpreter:
-`Ctrl+Shift+P` → "Python: Select Interpreter" → choose `myenv`.
+---
 
-## 2. (Re)train the model — already done, model.pkl is included
+## 3. (Re)train the model — optional, model.pkl is already included
 
-The original course dataset (`insurance.csv`) wasn't inside the PDF, so
+The original course dataset (`insurance.csv`) isn't bundled here, so
 `train_model.py` generates a synthetic dataset using the same feature-engineering
 rules (BMI, age group, lifestyle risk, city tier) and trains a `RandomForestClassifier`
-inside an sklearn `Pipeline`. A trained `model/model.pkl` is already included, but you
-can regenerate it any time:
+inside an sklearn `Pipeline`.
+
+To retrain (e.g. after swapping in your real dataset):
 
 ```bash
 python train_model.py
 ```
 
-Swap in your real `insurance.csv` inside that script if you have the actual dataset.
+---
 
-## 3. Run the API
+## 4. Run the API
 
 ```bash
 uvicorn app:app --reload --host 0.0.0.0 --port 8000
 ```
 
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
+Expected output:
+```
+INFO:     Uvicorn running on http://0.0.0.0:8000
+INFO:     Application startup complete.
+```
 
-## 4. Example request
+Then open:
+- **Swagger UI** (interactive): http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
+
+---
+
+## 5. Example request
 
 ```bash
 curl -X POST "http://localhost:8000/predict" \
@@ -95,10 +127,44 @@ Response:
 }
 ```
 
-## Endpoints
+---
 
-| Method | Path        | Purpose                          |
-|--------|-------------|-----------------------------------|
-| GET    | `/`         | Home — confirms API is running   |
-| GET    | `/health`   | Health check (for load balancers)|
-| POST   | `/predict`  | Returns premium category + confidence scores |
+## 6. Endpoints
+
+| Method | Path        | Purpose                                       |
+|--------|-------------|------------------------------------------------|
+| GET    | `/`         | Home — confirms API is running                |
+| GET    | `/health`   | Health check (status, model version, model loaded) |
+| POST   | `/predict`  | Returns premium category + confidence scores  |
+
+### `/predict` request fields
+
+| Field       | Type  | Constraints                          |
+|-------------|-------|----------------------------------------|
+| age         | int   | 0 < age < 120                          |
+| weight      | float | > 0 (kg)                               |
+| height      | float | 0 < height < 2.5 (meters)              |
+| income_lpa  | float | > 0 (Lakhs Per Annum)                  |
+| smoker      | bool  | true / false                           |
+| city        | str   | any city name (case-insensitive)       |
+| occupation  | str   | one of: retired, freelancer, student, government_job, business_owner, unemployed, private_job |
+
+---
+
+## 7. Troubleshooting
+
+| Problem | Fix |
+|---|---|
+| `ModuleNotFoundError: No module named 'schema'` (or `'model'`) | Your terminal isn't in the project root. `cd` into the folder containing `app.py` before running uvicorn. |
+| `ModuleNotFoundError: No module named 'fastapi'` | Virtual environment isn't activated, or `pip install -r requirements.txt` wasn't run in it. |
+| `422 Unprocessable Entity` on `/predict` | Check the request JSON against the field constraints above — Pydantic rejects out-of-range or missing fields. |
+| Port 8000 already in use | Run with a different port: `uvicorn app:app --reload --port 8001` |
+
+---
+
+## 8. Key design points
+
+- **Feature engineering lives in the Pydantic model** (`schema/user_input.py`) via `computed_field` — so the exact same BMI / age_group / lifestyle_risk / city_tier logic used in training is guaranteed to run at inference time.
+- **The whole preprocessing + model is one pickled sklearn `Pipeline`** — no separate encoder files to keep in sync.
+- **`response_model=PredictionResponse`** on the `/predict` route validates and documents the output shape automatically.
+- **`/health`** is designed for load balancers / Kubernetes probes, separate from the human-facing `/`.
