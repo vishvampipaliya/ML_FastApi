@@ -11,6 +11,7 @@ be **Low**, **Medium**, or **High** based on demographic and lifestyle data.
 ```
 insurance_premium_prediction/
 ├── app.py                        # FastAPI application (routes)
+├── streamlit_app.py              # Streamlit frontend (calls the FastAPI /predict endpoint)
 ├── train_model.py                # Trains the model, produces model/model.pkl
 ├── requirements.txt              # Python dependencies
 ├── README.md
@@ -129,7 +130,27 @@ Response:
 
 ---
 
-## 6. Endpoints
+## 6. Run the Streamlit frontend (optional)
+
+`streamlit_app.py` lives at the project root, right next to `app.py` (see the
+Project Structure tree above). It gives you a simple UI to test predictions
+without curl/Swagger.
+
+Make sure the FastAPI server is already running in one terminal, then in a **second**
+terminal (same virtual environment):
+
+```bash
+streamlit run streamlit_app.py
+```
+
+This opens a browser tab at `http://localhost:8501` with a form for age, weight,
+height, income, smoker status, city, and occupation. Clicking **Predict Premium
+Category** calls your local `/predict` endpoint and displays the predicted category,
+confidence percentage, and a bar chart of class probabilities.
+
+> If deploying the API elsewhere, update `API_URL` at the top of `streamlit_app.py`.
+
+## 7. Endpoints
 
 | Method | Path        | Purpose                                       |
 |--------|-------------|------------------------------------------------|
@@ -151,7 +172,7 @@ Response:
 
 ---
 
-## 7. Troubleshooting
+## 8. Troubleshooting
 
 | Problem | Fix |
 |---|---|
@@ -162,7 +183,7 @@ Response:
 
 ---
 
-## 8. Key design points
+## 9. Key design points
 
 - **Feature engineering lives in the Pydantic model** (`schema/user_input.py`) via `computed_field` — so the exact same BMI / age_group / lifestyle_risk / city_tier logic used in training is guaranteed to run at inference time.
 - **The whole preprocessing + model is one pickled sklearn `Pipeline`** — no separate encoder files to keep in sync.
